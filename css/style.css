@@ -28,7 +28,8 @@ html, body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 16px 24px;
+  max-height: 600px;
+  padding: 12px 20px;
 }
 
 /* ── Header ──────────────────────────────────────── */
@@ -36,7 +37,7 @@ header {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 #clock {
@@ -70,13 +71,14 @@ header {
 }
 
 #radar {
-  flex: 1;
+  flex: 0 0 auto;
   min-height: 0;
   border-radius: 50%;
   background: var(--surface);
   box-shadow:
     0 0 30px rgba(0, 255, 136, 0.1),
     inset 0 0 60px rgba(0, 255, 136, 0.05);
+  border: 1px solid rgba(0, 255, 136, 0.15);
 }
 
 /* ── Flight List ─────────────────────────────────── */
@@ -133,7 +135,7 @@ header {
 footer {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
+  margin-top: 8px;
   font-size: 0.75rem;
   color: var(--dim);
 }
@@ -160,8 +162,18 @@ footer {
     0deg,
     transparent,
     transparent 2px,
-    rgba(0, 0, 0, 0.03) 2px,
-    rgba(0, 0, 0, 0.03) 4px
+    rgba(0, 0, 0, 0.06) 2px,
+    rgba(0, 0, 0, 0.06) 4px
   );
   z-index: 1000;
+}
+
+/* ── CRT vignette effect ─────────────────────────── */
+#app::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, transparent 60%, rgba(0, 0, 0, 0.4) 100%);
+  z-index: 999;
 }
