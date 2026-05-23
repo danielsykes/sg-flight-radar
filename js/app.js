@@ -313,6 +313,8 @@ async function fetchFlights() {
           velocity: s[9], // m/s
           verticalRate: s[11],
           onGround: s[8],
+          airline: s[12] || deriveAirline(s[1]),
+          aircraftType: s[13] || "",
           trail,
           age: 0,
         };
@@ -342,11 +344,15 @@ function updateFlightList() {
   container.innerHTML = sorted.map((f) => {
     const altFl = f.altitude ? `FL${Math.round(f.altitude / 30.48 / 100)}` : "---";
     const speed = f.velocity ? `${Math.round(f.velocity * 1.944)}kt` : "";
+    const airline = f.airline || "";
     return `
       <div class="flight-item">
-        <span class="flight-callsign">${f.callsign || f.icao24}</span>
-        <span class="flight-alt">${altFl}</span>
-        <span class="flight-speed">${speed}</span>
+        <div class="flight-row-top">
+          <span class="flight-callsign">${f.callsign || f.icao24}</span>
+          <span class="flight-alt">${altFl}</span>
+          <span class="flight-speed">${speed}</span>
+        </div>
+        ${airline ? `<div class="flight-row-bottom"><span class="flight-airline">${airline}</span>${f.aircraftType ? `<span class="flight-type">${f.aircraftType}</span>` : ""}</div>` : ""}
       </div>`;
   }).join("");
 }
@@ -354,6 +360,27 @@ function updateFlightList() {
 function updateStats() {
   document.getElementById("stats").textContent =
     `${flights.length} aircraft in ${CONFIG.radiusKm}km`;
+}
+
+// Derive airline name from ICAO callsign prefix
+const AIRLINES = {
+  SIA: "Singapore Airlines", SLK: "Silk Air", SCO: "Scoot",
+  MAS: "Malaysia Airlines", AXM: "AirAsia", CPA: "Cathay Pacific",
+  QFA: "Qantas", JST: "Jetstar", SQC: "SQ Cargo",
+  UAE: "Emirates", ETD: "Etihad", QTR: "Qatar Airways",
+  BAW: "British Airways", DLH: "Lufthansa", AFR: "Air France",
+  KLM: "KLM", THY: "Turkish Airlines", EVA: "EVA Air",
+  CCA: "Air China", CES: "China Eastern", CSN: "China Southern",
+  ANA: "ANA", JAL: "Japan Airlines", KAL: "Korean Air",
+  AAR: "Asiana", VJC: "VietJet", HVN: "Vietnam Airlines",
+  GIA: "Garuda", LNI: "Lion Air", THA: "Thai Airways",
+  FDX: "FedEx", UPS: "UPS", GTI: "Atlas Air",
+};
+
+function deriveAirline(callsign) {
+  if (!callsign) return "";
+  const prefix = callsign.trim().substring(0, 3).toUpperCase();
+  return AIRLINES[prefix] || "";
 }
 
 function getDistance(lat, lng) {
