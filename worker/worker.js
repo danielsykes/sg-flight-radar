@@ -42,9 +42,10 @@ async function fetchAirplanesLive(lamin, lamax, lomin, lomax) {
   if (!res.ok) throw new Error(`airplanes.live ${res.status}`);
   const data = await res.json();
 
-  // Normalize to OpenSky states format:
+  // Normalize to OpenSky states format with extra fields:
   // [icao24, callsign, origin_country, time_position, last_contact,
-  //  longitude, latitude, geo_altitude, on_ground, velocity, true_track, ...]
+  //  longitude, latitude, geo_altitude, on_ground, velocity, true_track,
+  //  vertical_rate, operator, aircraft_type]
   const states = (data.ac || []).map((ac) => [
     ac.hex || "",                    // 0: icao24
     ac.flight || "",                 // 1: callsign
@@ -58,6 +59,10 @@ async function fetchAirplanesLive(lamin, lamax, lomin, lomax) {
     (ac.gs || 0) * 0.5144,          // 9: velocity (knots -> m/s)
     ac.track || 0,                   // 10: true_track
     ac.baro_rate ? ac.baro_rate * 0.00508 : 0, // 11: vertical_rate (fpm -> m/s)
+    ac.ownOp || "",                  // 12: operator/airline
+    ac.t || "",                      // 13: aircraft type
+    ac.ownOp ? "" : "",              // 14: origin (not available from ADS-B)
+    ac.ownOp ? "" : "",              // 15: destination (not available from ADS-B)
   ]);
 
   return { time: Math.floor(Date.now() / 1000), states, source: "airplanes.live" };
