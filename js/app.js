@@ -451,7 +451,7 @@ async function fetchFlights() {
       `Updated ${new Date().toLocaleTimeString("en-SG", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false })}`;
   } catch (err) {
     console.error("Flight fetch failed:", err);
-    document.getElementById("updated").textContent = `Error: ${err.message}`;
+    document.getElementById("updated").textContent = "Data temporarily unavailable";
   }
 }
 
@@ -465,29 +465,62 @@ function updateFlightList() {
     })
     .slice(0, 12);
 
-  container.innerHTML = sorted.map((f, i) => {
+  container.replaceChildren(...sorted.map((f, i) => {
     const altFl = f.altitude ? `FL${Math.round(f.altitude / 30.48 / 100)}` : "---";
     const speed = f.velocity ? `${Math.round(f.velocity * 1.944)}kt` : "";
     const airline = f.airline || "";
     const isClosest = i === 0;
     const vArrow = f.verticalRate > 1 ? "↑" : f.verticalRate < -1 ? "↓" : "";
     const vClass = f.verticalRate > 1 ? "climbing" : f.verticalRate < -1 ? "descending" : "";
-    return `
-      <div class="flight-item${isClosest ? " closest" : ""}">
-        <div class="flight-row-top">
-          <span class="flight-callsign">${f.callsign || f.icao24}</span>
-          <span class="flight-alt ${vClass}">${vArrow}${altFl}</span>
-          <span class="flight-speed">${speed}</span>
-        </div>
-        ${airline ? `<div class="flight-row-bottom"><span class="flight-airline">${airline}</span>${f.aircraftType ? `<span class="flight-type">${f.aircraftType}</span>` : ""}</div>` : ""}
-      </div>`;
-  }).join("");
+
+    const item = document.createElement("div");
+    item.className = `flight-item${isClosest ? " closest" : ""}`;
+
+    const rowTop = document.createElement("div");
+    rowTop.className = "flight-row-top";
+    const csEl = document.createElement("span");
+    csEl.className = "flight-callsign";
+    csEl.textContent = f.callsign || f.icao24;
+    const altEl = document.createElement("span");
+    altEl.className = `flight-alt ${vClass}`;
+    altEl.textContent = `${vArrow}${altFl}`;
+    const spdEl = document.createElement("span");
+    spdEl.className = "flight-speed";
+    spdEl.textContent = speed;
+    rowTop.append(csEl, altEl, spdEl);
+    item.appendChild(rowTop);
+
+    if (airline) {
+      const rowBot = document.createElement("div");
+      rowBot.className = "flight-row-bottom";
+      const airEl = document.createElement("span");
+      airEl.className = "flight-airline";
+      airEl.textContent = airline;
+      rowBot.appendChild(airEl);
+      if (f.aircraftType) {
+        const typeEl = document.createElement("span");
+        typeEl.className = "flight-type";
+        typeEl.textContent = f.aircraftType;
+        rowBot.appendChild(typeEl);
+      }
+      item.appendChild(rowBot);
+    }
+
+    return item;
+  }));
 }
 
 function updateStats() {
   const statsEl = document.getElementById("stats");
-  const sparkline = trafficHistory.length > 1 ? drawSparklineSVG() : "";
-  statsEl.innerHTML = `${flights.length} aircraft ${sparkline}`;
+  const countText = document.createTextNode(`${flights.length} aircraft `);
+  if (trafficHistory.length > 1) {
+    const svgMarkup = drawSparklineSVG();
+    const template = document.createElement("template");
+    template.innerHTML = svgMarkup;
+    statsEl.replaceChildren(countText, template.content);
+  } else {
+    statsEl.replaceChildren(countText);
+  }
 }
 
 function drawSparklineSVG() {
