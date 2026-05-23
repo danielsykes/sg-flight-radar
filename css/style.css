@@ -5,9 +5,9 @@
   --bg:        #0a0a0a;
   --surface:   #0d1a0d;
   --text:      #00ff88;
-  --dim:       #005533;
+  --dim:       #33aa77;
   --accent:    #00ffcc;
-  --grid:      #003322;
+  --grid:      #1a3d2e;
   --sweep:     rgba(0, 255, 136, 0.08);
   --blip:      #00ff88;
   --blip-glow: rgba(0, 255, 136, 0.6);
@@ -103,10 +103,10 @@ header {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  padding: 4px 8px;
+  padding: 5px 10px;
   border-radius: 4px;
-  font-size: 0.75rem;
-  background: rgba(0, 255, 136, 0.03);
+  font-size: 0.8rem;
+  background: rgba(0, 255, 136, 0.04);
   border: 1px solid var(--grid);
 }
 
@@ -124,9 +124,8 @@ header {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   color: var(--dim);
-  opacity: 0.8;
 }
 
 .flight-airline {
@@ -138,24 +137,23 @@ header {
 .flight-type {
   margin-left: auto;
   color: var(--dim);
-  opacity: 0.6;
 }
 
 .flight-callsign {
   font-weight: 700;
-  color: var(--accent);
+  color: #ffffff;
   min-width: 70px;
 }
 
 .flight-alt {
-  color: var(--dim);
-  font-size: 0.65rem;
+  color: var(--text);
+  font-size: 0.7rem;
 }
 
 .flight-speed {
   margin-left: auto;
-  color: var(--dim);
-  font-size: 0.65rem;
+  color: var(--text);
+  font-size: 0.7rem;
 }
 
 /* ── Footer ──────────────────────────────────────── */
