@@ -167,46 +167,19 @@ function drawRunways() {
 }
 
 function drawWindIndicator() {
+  // Wind is now displayed in the sidebar DOM element
   if (!windData) return;
-  const cx = radarSize / 2;
-  const cy = radarSize / 2;
+  const el = document.getElementById("wind-info");
+  if (el) {
+    const arrow = getWindArrow(windData.direction);
+    el.textContent = `${arrow} WIND ${windData.speed}kt ${Math.round(windData.direction)}°`;
+  }
+}
 
-  // Position in bottom-left quadrant of radar (inside the circle)
-  const wx = cx - radarSize * 0.28;
-  const wy = cy + radarSize * 0.28;
-  const windAngle = (windData.direction - 90) * (Math.PI / 180);
-  const arrowLen = 20;
-
-  ctx.save();
-  ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
-  ctx.fillStyle = "rgba(0, 200, 255, 0.8)";
-  ctx.lineWidth = 2;
-
-  // "WIND" label
-  ctx.font = "bold 7px 'Courier New'";
-  ctx.textAlign = "center";
-  ctx.fillText("WIND", wx, wy - arrowLen / 2 - 8);
-
-  // Arrow shaft
-  ctx.beginPath();
-  ctx.moveTo(wx - Math.cos(windAngle) * arrowLen / 2, wy - Math.sin(windAngle) * arrowLen / 2);
-  ctx.lineTo(wx + Math.cos(windAngle) * arrowLen / 2, wy + Math.sin(windAngle) * arrowLen / 2);
-  ctx.stroke();
-
-  // Arrowhead
-  const tipX = wx + Math.cos(windAngle) * arrowLen / 2;
-  const tipY = wy + Math.sin(windAngle) * arrowLen / 2;
-  ctx.beginPath();
-  ctx.moveTo(tipX, tipY);
-  ctx.lineTo(tipX - Math.cos(windAngle - 0.4) * 7, tipY - Math.sin(windAngle - 0.4) * 7);
-  ctx.lineTo(tipX - Math.cos(windAngle + 0.4) * 7, tipY - Math.sin(windAngle + 0.4) * 7);
-  ctx.closePath();
-  ctx.fill();
-
-  // Speed + direction label
-  ctx.font = "8px 'Courier New'";
-  ctx.fillText(`${Math.round(windData.speed)}kt ${Math.round(windData.direction)}°`, wx, wy + arrowLen / 2 + 12);
-  ctx.restore();
+function getWindArrow(deg) {
+  // 8-point compass arrows showing wind FROM direction
+  const arrows = ["↓", "↙", "←", "↖", "↑", "↗", "→", "↘"];
+  return arrows[Math.round(deg / 45) % 8];
 }
 
 function drawSweep() {
@@ -375,7 +348,6 @@ function animate(now) {
   drawGrid();
   drawSweep();
   drawFlights();
-  drawWindIndicator();
 
   requestAnimationFrame(animate);
 }
@@ -426,7 +398,10 @@ async function fetchFlights() {
       document.querySelector(".source").textContent = sourceNames[data.source] || data.source || "Unknown";
 
       // Update wind from response
-      if (data.wind) windData = data.wind;
+      if (data.wind) {
+        windData = data.wind;
+        drawWindIndicator();
+      }
 
       // Store previous positions as trails
       const prevMap = new Map(flights.map(f => [f.icao24, f]));
