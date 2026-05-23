@@ -170,6 +170,19 @@ header {
   font-size: 0.7rem;
 }
 
+/* ── Wind Box ────────────────────────────────────── */
+.wind-box {
+  margin-top: auto;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--grid);
+  background: rgba(0, 200, 255, 0.04);
+  font-size: 0.8rem;
+  color: #00c8ff;
+  text-align: center;
+  letter-spacing: 0.1em;
+}
+
 /* ── Footer ──────────────────────────────────────── */
 footer {
   display: flex;
