@@ -39,13 +39,17 @@ function initCanvas() {
 function resizeCanvas() {
   const container = canvas.parentElement;
   const maxH = container.clientHeight;
-  const maxW = container.clientWidth - 240; // account for flight list
-  radarSize = Math.min(maxH, maxW);
-  canvas.width = radarSize * window.devicePixelRatio;
-  canvas.height = radarSize * window.devicePixelRatio;
+  // Use the actual remaining width (container minus the flight-list sidebar)
+  const sidebar = document.getElementById("flight-list");
+  const gap = 16; // matches CSS gap
+  const maxW = container.clientWidth - (sidebar ? sidebar.offsetWidth + gap : 0);
+  radarSize = Math.floor(Math.min(maxH, maxW));
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = radarSize * dpr;
+  canvas.height = radarSize * dpr;
   canvas.style.width = radarSize + "px";
   canvas.style.height = radarSize + "px";
-  ctx.setTransform(window.devicePixelRatio, 0, 0, window.devicePixelRatio, 0, 0);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
 // ── Radar Drawing ────────────────────────────────────────────
@@ -240,31 +244,6 @@ function drawFlights() {
   ctx.restore();
 }
 
-function latLngToRadar(lat, lng) {
-  const cx = radarSize / 2;
-  const cy = radarSize / 2;
-  const maxR = radarSize / 2 - 20;
-
-  // Calculate distance and bearing from center
-  const dLat = (lat - CONFIG.centerLat) * 111.32; // km per degree lat
-  const dLng = (lng - CONFIG.centerLng) * 111.32 * Math.cos(CONFIG.centerLat * Math.PI / 180);
-  const distKm = Math.sqrt(dLat * dLat + dLng * dLng);
-
-  if (distKm > CONFIG.radiusKm) return null;
-
-  const r = (distKm / CONFIG.radiusKm) * maxR;
-  const angle = Math.atan2(-dLat, dLng); // negative dLat because screen Y is inverted
-
-  // Convert: North is up (angle 0 = East, so rotate -90)
-  const screenAngle = angle - Math.PI / 2;
-
-  return {
-    x: cx + Math.cos(screenAngle + Math.PI / 2) * r * (dLng / (distKm || 1)),
-    y: cy - r * (dLat / (distKm || 1)),
-  };
-}
-
-// Simpler & correct lat/lng to pixel
 function latLngToRadar(lat, lng) {
   const cx = radarSize / 2;
   const cy = radarSize / 2;
