@@ -171,18 +171,22 @@ function drawWindIndicator() {
   if (!windData) return;
   const cx = radarSize / 2;
   const cy = radarSize / 2;
-  const maxR = radarSize / 2 - 4;
 
-  // Wind arrow in top-left area of radar
-  const wx = cx - maxR + 40;
-  const wy = cy - maxR + 40;
+  // Position in bottom-left quadrant of radar (inside the circle)
+  const wx = cx - radarSize * 0.28;
+  const wy = cy + radarSize * 0.28;
   const windAngle = (windData.direction - 90) * (Math.PI / 180);
-  const arrowLen = 18;
+  const arrowLen = 20;
 
   ctx.save();
-  ctx.strokeStyle = "rgba(0, 200, 255, 0.7)";
-  ctx.fillStyle = "rgba(0, 200, 255, 0.7)";
-  ctx.lineWidth = 1.5;
+  ctx.strokeStyle = "rgba(0, 200, 255, 0.8)";
+  ctx.fillStyle = "rgba(0, 200, 255, 0.8)";
+  ctx.lineWidth = 2;
+
+  // "WIND" label
+  ctx.font = "bold 7px 'Courier New'";
+  ctx.textAlign = "center";
+  ctx.fillText("WIND", wx, wy - arrowLen / 2 - 8);
 
   // Arrow shaft
   ctx.beginPath();
@@ -195,15 +199,14 @@ function drawWindIndicator() {
   const tipY = wy + Math.sin(windAngle) * arrowLen / 2;
   ctx.beginPath();
   ctx.moveTo(tipX, tipY);
-  ctx.lineTo(tipX - Math.cos(windAngle - 0.4) * 6, tipY - Math.sin(windAngle - 0.4) * 6);
-  ctx.lineTo(tipX - Math.cos(windAngle + 0.4) * 6, tipY - Math.sin(windAngle + 0.4) * 6);
+  ctx.lineTo(tipX - Math.cos(windAngle - 0.4) * 7, tipY - Math.sin(windAngle - 0.4) * 7);
+  ctx.lineTo(tipX - Math.cos(windAngle + 0.4) * 7, tipY - Math.sin(windAngle + 0.4) * 7);
   ctx.closePath();
   ctx.fill();
 
-  // Label
-  ctx.font = "7px 'Courier New'";
-  ctx.textAlign = "center";
-  ctx.fillText(`${Math.round(windData.speed)}kt`, wx, wy + arrowLen / 2 + 12);
+  // Speed + direction label
+  ctx.font = "8px 'Courier New'";
+  ctx.fillText(`${Math.round(windData.speed)}kt ${Math.round(windData.direction)}°`, wx, wy + arrowLen / 2 + 12);
   ctx.restore();
 }
 
@@ -372,8 +375,8 @@ function animate(now) {
 
   drawGrid();
   drawSweep();
-  drawWindIndicator();
   drawFlights();
+  drawWindIndicator();
 
   requestAnimationFrame(animate);
 }
