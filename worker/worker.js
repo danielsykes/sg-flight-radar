@@ -15,6 +15,7 @@
 
 const OPENSKY_BASE = "https://opensky-network.org/api/states/all";
 const OPENSKY_TIMEOUT_MS = 3000;
+const RATE_LIMIT_PER_MINUTE = 30;
 
 const ALLOWED_ORIGINS = [
   "https://danielsykes.github.io",
@@ -111,6 +112,23 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: getCorsHeaders(request) });
     }
+
+    // Simple IP-based rate limiting using CF cache
+    const clientIP = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rateLimitKey = `https://rate-limit.internal/${clientIP}`;
+    const cache = caches.default;
+    const cached = await cache.match(rateLimitKey);
+    const currentCount = cached ? parseInt(await cached.text(), 10) : 0;
+    if (currentCount >= RATE_LIMIT_PER_MINUTE) {
+      return jsonResponse({ error: "Rate limit exceeded" }, 429, {
+        "Retry-After": "60",
+      }, request);
+    }
+    // Increment counter (60s TTL window)
+    const counterRes = new Response(String(currentCount + 1), {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
+    await cache.put(rateLimitKey, counterRes);
 
     const url = new URL(request.url);
     const lamin = url.searchParams.get("lamin");
