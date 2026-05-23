@@ -120,21 +120,38 @@ export default {
     }
 
     // Try OpenSky first, failover to airplanes.live
+    let flightData;
     try {
-      const data = await fetchOpenSky(lamin, lamax, lomin, lomax, env);
-      return jsonResponse(data);
+      flightData = await fetchOpenSky(lamin, lamax, lomin, lomax, env);
     } catch (openSkyErr) {
       console.log(`OpenSky failed (${openSkyErr.message}), falling back to airplanes.live`);
+      try {
+        flightData = await fetchAirplanesLive(lamin, lamax, lomin, lomax);
+      } catch (fallbackErr) {
+        return jsonResponse(
+          { error: "All flight data sources failed", details: fallbackErr.message },
+          502
+        );
+      }
     }
 
+    // Attach wind data (non-blocking, cached)
     try {
-      const data = await fetchAirplanesLive(lamin, lamax, lomin, lomax);
-      return jsonResponse(data);
-    } catch (fallbackErr) {
-      return jsonResponse(
-        { error: "All flight data sources failed", details: fallbackErr.message },
-        502
+      const windRes = await fetch(
+        "https://api.open-meteo.com/v1/forecast?latitude=1.3521&longitude=103.8198&current=wind_speed_10m,wind_direction_10m",
+        { cf: { cacheTtl: 300 } }
       );
-    }
+      if (windRes.ok) {
+        const windJson = await windRes.json();
+        if (windJson.current) {
+          flightData.wind = {
+            speed: Math.round(windJson.current.wind_speed_10m * 0.54), // km/h to kt
+            direction: windJson.current.wind_direction_10m,
+          };
+        }
+      }
+    } catch (e) { /* wind is optional */ }
+
+    return jsonResponse(flightData);
   },
 };

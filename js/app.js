@@ -16,7 +16,6 @@ const CONFIG = {
     { name: "02L/20R", start: [1.3403, 103.9893], end: [1.3636, 103.9970] },
     { name: "02C/20C", start: [1.3375, 103.9845], end: [1.3608, 103.9922] },
   ],
-  windApiUrl: "https://api.open-meteo.com/v1/forecast?latitude=1.3521&longitude=103.8198&current=wind_speed_10m,wind_direction_10m",
 };
 
 // ── State ────────────────────────────────────────────────────
@@ -426,6 +425,9 @@ async function fetchFlights() {
       const sourceNames = { opensky: "OpenSky Network", "airplanes.live": "airplanes.live" };
       document.querySelector(".source").textContent = sourceNames[data.source] || data.source || "Unknown";
 
+      // Update wind from response
+      if (data.wind) windData = data.wind;
+
       // Store previous positions as trails
       const prevMap = new Map(flights.map(f => [f.icao24, f]));
       const newFlightIds = new Set();
@@ -551,20 +553,7 @@ function getDistance(lat, lng) {
 }
 
 // ── Wind Data ────────────────────────────────────────────────
-async function fetchWind() {
-  try {
-    const res = await fetch(CONFIG.windApiUrl);
-    const data = await res.json();
-    if (data.current) {
-      windData = {
-        speed: Math.round(data.current.wind_speed_10m * 0.54), // km/h to knots
-        direction: data.current.wind_direction_10m,
-      };
-    }
-  } catch (e) {
-    console.error("Wind fetch failed:", e);
-  }
-}
+// Wind is now fetched by the worker and included in flight responses
 
 // ── Init ─────────────────────────────────────────────────────
 updateClock();
@@ -575,6 +564,3 @@ requestAnimationFrame(animate);
 
 fetchFlights();
 setInterval(fetchFlights, CONFIG.refreshInterval);
-
-fetchWind();
-setInterval(fetchWind, 300_000); // update wind every 5 min
