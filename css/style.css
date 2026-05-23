@@ -1,0 +1,167 @@
+/* ── Reset & Base ──────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:        #0a0a0a;
+  --surface:   #0d1a0d;
+  --text:      #00ff88;
+  --dim:       #005533;
+  --accent:    #00ffcc;
+  --grid:      #003322;
+  --sweep:     rgba(0, 255, 136, 0.08);
+  --blip:      #00ff88;
+  --blip-glow: rgba(0, 255, 136, 0.6);
+  --danger:    #ff3333;
+  --warn:      #ffaa00;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Courier New', 'Consolas', monospace;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+}
+
+/* ── Layout (1024×600 Nest Hub) ──────────────────── */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px 24px;
+}
+
+/* ── Header ──────────────────────────────────────── */
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+#clock {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--dim);
+  margin-right: auto;
+}
+
+.title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--accent);
+  text-shadow: 0 0 10px var(--blip-glow), 0 0 20px rgba(0, 255, 204, 0.3);
+}
+
+#stats {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: var(--dim);
+}
+
+/* ── Content ─────────────────────────────────────── */
+.content {
+  flex: 1;
+  display: flex;
+  gap: 16px;
+  min-height: 0;
+}
+
+#radar {
+  flex: 1;
+  min-height: 0;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow:
+    0 0 30px rgba(0, 255, 136, 0.1),
+    inset 0 0 60px rgba(0, 255, 136, 0.05);
+}
+
+/* ── Flight List ─────────────────────────────────── */
+#flight-list {
+  width: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.list-header {
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--grid);
+}
+
+.flight-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  background: rgba(0, 255, 136, 0.03);
+  border: 1px solid var(--grid);
+}
+
+.flight-item:hover {
+  background: rgba(0, 255, 136, 0.08);
+}
+
+.flight-callsign {
+  font-weight: 700;
+  color: var(--accent);
+  min-width: 70px;
+}
+
+.flight-alt {
+  color: var(--dim);
+  font-size: 0.65rem;
+}
+
+.flight-speed {
+  margin-left: auto;
+  color: var(--dim);
+  font-size: 0.65rem;
+}
+
+/* ── Footer ──────────────────────────────────────── */
+footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  font-size: 0.75rem;
+  color: var(--dim);
+}
+
+/* ── Scrollbar ───────────────────────────────────── */
+#flight-list::-webkit-scrollbar {
+  width: 4px;
+}
+#flight-list::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+#flight-list::-webkit-scrollbar-thumb {
+  background: var(--grid);
+  border-radius: 2px;
+}
+
+/* ── Scanline overlay effect ─────────────────────── */
+#app::after {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+  z-index: 1000;
+}
