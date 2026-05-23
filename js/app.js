@@ -290,6 +290,10 @@ async function fetchFlights() {
     const data = await res.json();
 
     if (data.states) {
+      // Update source indicator
+      const sourceNames = { opensky: "OpenSky Network", "airplanes.live": "airplanes.live" };
+      document.querySelector(".source").textContent = sourceNames[data.source] || data.source || "Unknown";
+
       // Store previous positions as trails
       const prevMap = new Map(flights.map(f => [f.icao24, f]));
 
