@@ -15,17 +15,30 @@
 
 const OPENSKY_BASE = "https://opensky-network.org/api/states/all";
 const OPENSKY_TIMEOUT_MS = 3000;
+const RATE_LIMIT_PER_MINUTE = 30;
 
-const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
+const ALLOWED_ORIGINS = [
+  "https://danielsykes.github.io",
+  "http://localhost",
+  "http://127.0.0.1",
+];
 
-function jsonResponse(body, status = 200, extra = {}) {
+function getCorsHeaders(request) {
+  const origin = request.headers.get("Origin") || "";
+  const allowed = ALLOWED_ORIGINS.some(o => origin.startsWith(o));
+  return {
+    "Access-Control-Allow-Origin": allowed ? origin : ALLOWED_ORIGINS[0],
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Vary": "Origin",
+  };
+}
+
+function jsonResponse(body, status = 200, extra = {}, request = null) {
+  const cors = request ? getCorsHeaders(request) : { "Access-Control-Allow-Origin": ALLOWED_ORIGINS[0] };
   return new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS_HEADERS, "Content-Type": "application/json", "Cache-Control": "public, max-age=10", ...extra },
+    headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "public, max-age=10", ...extra },
   });
 }
 
@@ -97,8 +110,25 @@ async function fetchOpenSky(lamin, lamax, lomin, lomax, env) {
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: CORS_HEADERS });
+      return new Response(null, { headers: getCorsHeaders(request) });
     }
+
+    // Simple IP-based rate limiting using CF cache
+    const clientIP = request.headers.get("CF-Connecting-IP") || "unknown";
+    const rateLimitKey = `https://rate-limit.internal/${clientIP}`;
+    const cache = caches.default;
+    const cached = await cache.match(rateLimitKey);
+    const currentCount = cached ? parseInt(await cached.text(), 10) : 0;
+    if (currentCount >= RATE_LIMIT_PER_MINUTE) {
+      return jsonResponse({ error: "Rate limit exceeded" }, 429, {
+        "Retry-After": "60",
+      }, request);
+    }
+    // Increment counter (60s TTL window)
+    const counterRes = new Response(String(currentCount + 1), {
+      headers: { "Cache-Control": "public, max-age=60" },
+    });
+    await cache.put(rateLimitKey, counterRes);
 
     const url = new URL(request.url);
     const lamin = url.searchParams.get("lamin");
@@ -114,9 +144,19 @@ export default {
           status: "ok",
           usage: "GET /?lamin=0.5&lamax=2.2&lomin=103&lomax=104.5",
           sources: ["OpenSky Network (primary)", "airplanes.live (failover)"],
-        });
+        }, 200, {}, request);
       }
-      return jsonResponse({ error: "Bounding box params required: lamin, lamax, lomin, lomax" }, 400);
+      return jsonResponse({ error: "Bounding box params required: lamin, lamax, lomin, lomax" }, 400, {}, request);
+    }
+
+    // Validate bounding box params are reasonable numbers
+    const nums = [lamin, lamax, lomin, lomax].map(Number);
+    if (nums.some(n => isNaN(n) || n < -180 || n > 180)) {
+      return jsonResponse({ error: "Invalid bounding box values" }, 400, {}, request);
+    }
+    // Prevent excessively large bounding boxes (max ~5 degrees span)
+    if (Math.abs(nums[1] - nums[0]) > 5 || Math.abs(nums[3] - nums[2]) > 5) {
+      return jsonResponse({ error: "Bounding box too large (max 5° span)" }, 400, {}, request);
     }
 
     // Try OpenSky first, failover to airplanes.live
@@ -129,8 +169,8 @@ export default {
         flightData = await fetchAirplanesLive(lamin, lamax, lomin, lomax);
       } catch (fallbackErr) {
         return jsonResponse(
-          { error: "All flight data sources failed", details: fallbackErr.message },
-          502
+          { error: "All flight data sources unavailable" },
+          502, {}, request
         );
       }
     }
@@ -152,6 +192,6 @@ export default {
       }
     } catch (e) { /* wind is optional */ }
 
-    return jsonResponse(flightData);
+    return jsonResponse(flightData, 200, {}, request);
   },
 };
