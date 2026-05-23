@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  <title>Flight Radar – Singapore</title>
+  <link rel="stylesheet" href="css/style.css?v=1">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <div id="clock"></div>
+      <div class="title">FLIGHT RADAR</div>
+      <div id="stats"></div>
+    </header>
+
+    <div class="content">
+      <canvas id="radar"></canvas>
+      <aside id="flight-list">
+        <div class="list-header">TRACKED</div>
+        <div id="flights"></div>
+      </aside>
+    </div>
+
+    <footer>
+      <span id="updated"></span>
+      <span class="source">OpenSky Network</span>
+    </footer>
+  </div>
+
+  <script src="js/app.js?v=1"></script>
+</body>
+</html>
