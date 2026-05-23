@@ -134,6 +134,20 @@ header {
   white-space: nowrap;
 }
 
+.flight-item.closest {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(0, 255, 136, 0.4);
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.2);
+}
+
+.flight-alt.climbing {
+  color: #00c8ff !important;
+}
+
+.flight-alt.descending {
+  color: #ffaa00 !important;
+}
+
 .flight-type {
   margin-left: auto;
   color: var(--dim);

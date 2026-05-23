@@ -11,14 +11,24 @@ const CONFIG = {
   radiusKm: 80,
   refreshInterval: 15_000,
   sweepSpeed: 4_000, // ms per full rotation
+  // Changi Airport runways (approximate coordinates)
+  changiRunways: [
+    { name: "02L/20R", start: [1.3403, 103.9893], end: [1.3636, 103.9970] },
+    { name: "02C/20C", start: [1.3375, 103.9845], end: [1.3608, 103.9922] },
+  ],
+  windApiUrl: "https://api.open-meteo.com/v1/forecast?latitude=1.3521&longitude=103.8198&current=wind_speed_10m,wind_direction_10m",
 };
 
 // ── State ────────────────────────────────────────────────────
 let flights = [];
+let prevFlightIds = new Set();
 let sweepAngle = 0;
 let lastSweepTime = performance.now();
 let canvas, ctx;
 let radarSize = 0;
+let trafficHistory = []; // sparkline data
+let windData = null; // { speed, direction }
+let lastAnimateTime = 0;
 
 // ── Clock ────────────────────────────────────────────────────
 function updateClock() {
@@ -126,6 +136,74 @@ function drawGrid() {
   ctx.arc(cx, cy, 3, 0, Math.PI * 2);
   ctx.fill();
 
+  // Changi runway overlay
+  drawRunways(cx, cy, maxR);
+
+  ctx.restore();
+}
+
+function drawRunways() {
+  const cx = radarSize / 2;
+  const cy = radarSize / 2;
+  const maxR = radarSize / 2 - 20;
+
+  CONFIG.changiRunways.forEach((rwy) => {
+    const start = latLngToRadar(rwy.start[0], rwy.start[1]);
+    const end = latLngToRadar(rwy.end[0], rwy.end[1]);
+    if (!start || !end) return;
+
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.strokeStyle = "rgba(255, 170, 0, 0.6)";
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Runway label
+    ctx.fillStyle = "rgba(255, 170, 0, 0.5)";
+    ctx.font = "7px 'Courier New'";
+    ctx.textAlign = "center";
+    ctx.fillText(rwy.name, (start.x + end.x) / 2 + 12, (start.y + end.y) / 2);
+  });
+}
+
+function drawWindIndicator() {
+  if (!windData) return;
+  const cx = radarSize / 2;
+  const cy = radarSize / 2;
+  const maxR = radarSize / 2 - 4;
+
+  // Wind arrow in top-left area of radar
+  const wx = cx - maxR + 40;
+  const wy = cy - maxR + 40;
+  const windAngle = (windData.direction - 90) * (Math.PI / 180);
+  const arrowLen = 18;
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(0, 200, 255, 0.7)";
+  ctx.fillStyle = "rgba(0, 200, 255, 0.7)";
+  ctx.lineWidth = 1.5;
+
+  // Arrow shaft
+  ctx.beginPath();
+  ctx.moveTo(wx - Math.cos(windAngle) * arrowLen / 2, wy - Math.sin(windAngle) * arrowLen / 2);
+  ctx.lineTo(wx + Math.cos(windAngle) * arrowLen / 2, wy + Math.sin(windAngle) * arrowLen / 2);
+  ctx.stroke();
+
+  // Arrowhead
+  const tipX = wx + Math.cos(windAngle) * arrowLen / 2;
+  const tipY = wy + Math.sin(windAngle) * arrowLen / 2;
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - Math.cos(windAngle - 0.4) * 6, tipY - Math.sin(windAngle - 0.4) * 6);
+  ctx.lineTo(tipX - Math.cos(windAngle + 0.4) * 6, tipY - Math.sin(windAngle + 0.4) * 6);
+  ctx.closePath();
+  ctx.fill();
+
+  // Label
+  ctx.font = "7px 'Courier New'";
+  ctx.textAlign = "center";
+  ctx.fillText(`${Math.round(windData.speed)}kt`, wx, wy + arrowLen / 2 + 12);
   ctx.restore();
 }
 
@@ -182,48 +260,68 @@ function drawFlights() {
   ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
   ctx.clip();
 
+  // Find closest aircraft for highlighting
+  let closestDist = Infinity;
+  let closestIcao = null;
+  flights.forEach((f) => {
+    const d = getDistance(f.lat, f.lng);
+    if (d < closestDist) { closestDist = d; closestIcao = f.icao24; }
+  });
+
   flights.forEach((f) => {
     const pos = latLngToRadar(f.lat, f.lng);
     if (!pos) return;
 
     const x = pos.x;
     const y = pos.y;
+    const isClosest = f.icao24 === closestIcao;
 
     // Determine blip age for fade effect
     const age = f.age || 1;
     const alpha = Math.max(0.3, 1 - age * 0.1);
 
-    // Blip glow
-    ctx.shadowColor = `rgba(0, 255, 136, ${alpha * 0.8})`;
-    ctx.shadowBlur = 6;
+    // Color based on vertical rate: green=level, cyan=climbing, amber=descending
+    let blipColor;
+    if (f.verticalRate > 1) blipColor = `rgba(0, 200, 255, ${alpha})`; // climbing
+    else if (f.verticalRate < -1) blipColor = `rgba(255, 170, 0, ${alpha})`; // descending
+    else blipColor = `rgba(0, 255, 204, ${alpha})`; // level
+
+    // Blip glow (brighter for closest)
+    const glowAlpha = isClosest ? 1 : alpha * 0.8;
+    const glowSize = isClosest ? 10 : 6;
+    ctx.shadowColor = isClosest ? "rgba(255, 255, 255, 0.9)" : `rgba(0, 255, 136, ${glowAlpha})`;
+    ctx.shadowBlur = glowSize;
 
     // Draw blip (triangle showing heading)
     const heading = ((f.heading || 0) - 90) * (Math.PI / 180);
-    const size = 5;
+    const size = isClosest ? 7 : 5;
 
     ctx.beginPath();
     ctx.moveTo(x + Math.cos(heading) * size * 1.5, y + Math.sin(heading) * size * 1.5);
     ctx.lineTo(x + Math.cos(heading + 2.5) * size, y + Math.sin(heading + 2.5) * size);
     ctx.lineTo(x + Math.cos(heading - 2.5) * size, y + Math.sin(heading - 2.5) * size);
     ctx.closePath();
-    ctx.fillStyle = `rgba(0, 255, 204, ${alpha})`;
+    ctx.fillStyle = isClosest ? "#ffffff" : blipColor;
     ctx.fill();
 
     ctx.shadowBlur = 0;
 
     // Callsign label
     if (f.callsign) {
-      ctx.fillStyle = `rgba(0, 255, 136, ${alpha * 0.8})`;
-      ctx.font = "8px 'Courier New'";
+      ctx.fillStyle = isClosest ? "rgba(255, 255, 255, 0.9)" : `rgba(0, 255, 136, ${alpha * 0.8})`;
+      ctx.font = isClosest ? "bold 9px 'Courier New'" : "8px 'Courier New'";
       ctx.textAlign = "left";
       ctx.fillText(f.callsign, x + 8, y - 4);
     }
 
-    // Altitude label
+    // Altitude label with climb/descend arrow
     if (f.altitude) {
-      ctx.fillStyle = `rgba(0, 85, 51, ${alpha * 0.8})`;
+      const arrow = f.verticalRate > 1 ? "↑" : f.verticalRate < -1 ? "↓" : "";
+      ctx.fillStyle = f.verticalRate > 1 ? `rgba(0, 200, 255, ${alpha * 0.8})`
+        : f.verticalRate < -1 ? `rgba(255, 170, 0, ${alpha * 0.8})`
+        : `rgba(0, 85, 51, ${alpha * 0.8})`;
       ctx.font = "7px 'Courier New'";
-      ctx.fillText(`FL${Math.round(f.altitude / 100)}`, x + 8, y + 5);
+      ctx.fillText(`${arrow}FL${Math.round(f.altitude / 100)}`, x + 8, y + 5);
     }
 
     // Trail (previous positions)
@@ -269,18 +367,49 @@ function animate(now) {
   sweepAngle += (dt / CONFIG.sweepSpeed) * Math.PI * 2;
   if (sweepAngle > Math.PI * 2) sweepAngle -= Math.PI * 2;
 
+  // Smooth interpolation: move flights toward target positions
+  interpolateFlights(dt);
+
   drawGrid();
   drawSweep();
+  drawWindIndicator();
   drawFlights();
 
   requestAnimationFrame(animate);
+}
+
+// ── Smooth Interpolation ─────────────────────────────────────
+function interpolateFlights(dt) {
+  const lerpFactor = Math.min(1, dt / 2000); // smooth over ~2s
+  flights.forEach((f) => {
+    if (f._targetLat !== undefined && f._targetLng !== undefined) {
+      f.lat += (f._targetLat - f.lat) * lerpFactor;
+      f.lng += (f._targetLng - f.lng) * lerpFactor;
+    }
+  });
+}
+
+// ── Audio ────────────────────────────────────────────────────
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+function playBlipSound() {
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(600, audioCtx.currentTime + 0.1);
+  gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+  osc.start();
+  osc.stop(audioCtx.currentTime + 0.15);
 }
 
 // ── Flight Data ──────────────────────────────────────────────
 async function fetchFlights() {
   try {
     const { centerLat, centerLng, radiusKm } = CONFIG;
-    // Bounding box approx
     const latDeg = radiusKm / 111.32;
     const lngDeg = radiusKm / (111.32 * Math.cos(centerLat * Math.PI / 180));
 
@@ -296,9 +425,11 @@ async function fetchFlights() {
 
       // Store previous positions as trails
       const prevMap = new Map(flights.map(f => [f.icao24, f]));
+      const newFlightIds = new Set();
 
       flights = data.states.map((s) => {
         const icao24 = s[0];
+        newFlightIds.add(icao24);
         const prev = prevMap.get(icao24);
         const trail = prev ? [...(prev.trail || []).slice(-5), { lat: prev.lat, lng: prev.lng }] : [];
 
@@ -306,11 +437,14 @@ async function fetchFlights() {
           icao24,
           callsign: (s[1] || "").trim(),
           country: s[2],
-          lat: s[6],
-          lng: s[5],
-          altitude: s[7], // geometric altitude in meters
+          // For interpolation: keep current display position, set target
+          lat: prev ? prev.lat : s[6],
+          lng: prev ? prev.lng : s[5],
+          _targetLat: s[6],
+          _targetLng: s[5],
+          altitude: s[7],
           heading: s[10],
-          velocity: s[9], // m/s
+          velocity: s[9],
           verticalRate: s[11],
           onGround: s[8],
           airline: s[12] || deriveAirline(s[1]),
@@ -318,7 +452,17 @@ async function fetchFlights() {
           trail,
           age: 0,
         };
-      }).filter(f => f.lat && f.lng && !f.onGround);
+      }).filter(f => f._targetLat && f._targetLng && !f.onGround);
+
+      // Detect new aircraft entering and play blip
+      newFlightIds.forEach((id) => {
+        if (!prevFlightIds.has(id)) playBlipSound();
+      });
+      prevFlightIds = newFlightIds;
+
+      // Update sparkline
+      trafficHistory.push({ time: Date.now(), count: flights.length });
+      if (trafficHistory.length > 60) trafficHistory.shift(); // keep ~15 min of data
     }
 
     updateFlightList();
@@ -339,17 +483,20 @@ function updateFlightList() {
       const dB = getDistance(b.lat, b.lng);
       return dA - dB;
     })
-    .slice(0, 15);
+    .slice(0, 12);
 
-  container.innerHTML = sorted.map((f) => {
+  container.innerHTML = sorted.map((f, i) => {
     const altFl = f.altitude ? `FL${Math.round(f.altitude / 30.48 / 100)}` : "---";
     const speed = f.velocity ? `${Math.round(f.velocity * 1.944)}kt` : "";
     const airline = f.airline || "";
+    const isClosest = i === 0;
+    const vArrow = f.verticalRate > 1 ? "↑" : f.verticalRate < -1 ? "↓" : "";
+    const vClass = f.verticalRate > 1 ? "climbing" : f.verticalRate < -1 ? "descending" : "";
     return `
-      <div class="flight-item">
+      <div class="flight-item${isClosest ? " closest" : ""}">
         <div class="flight-row-top">
           <span class="flight-callsign">${f.callsign || f.icao24}</span>
-          <span class="flight-alt">${altFl}</span>
+          <span class="flight-alt ${vClass}">${vArrow}${altFl}</span>
           <span class="flight-speed">${speed}</span>
         </div>
         ${airline ? `<div class="flight-row-bottom"><span class="flight-airline">${airline}</span>${f.aircraftType ? `<span class="flight-type">${f.aircraftType}</span>` : ""}</div>` : ""}
@@ -358,8 +505,19 @@ function updateFlightList() {
 }
 
 function updateStats() {
-  document.getElementById("stats").textContent =
-    `${flights.length} aircraft in ${CONFIG.radiusKm}km`;
+  const statsEl = document.getElementById("stats");
+  const sparkline = trafficHistory.length > 1 ? drawSparklineSVG() : "";
+  statsEl.innerHTML = `${flights.length} aircraft ${sparkline}`;
+}
+
+function drawSparklineSVG() {
+  const w = 60, h = 16;
+  const data = trafficHistory.map(d => d.count);
+  const max = Math.max(...data, 1);
+  const points = data.map((v, i) =>
+    `${(i / (data.length - 1)) * w},${h - (v / max) * h}`
+  ).join(" ");
+  return `<svg width="${w}" height="${h}" style="vertical-align:middle;margin-left:8px;"><polyline points="${points}" fill="none" stroke="#00ff88" stroke-width="1" opacity="0.6"/></svg>`;
 }
 
 // Derive airline name from ICAO callsign prefix
@@ -389,6 +547,22 @@ function getDistance(lat, lng) {
   return Math.sqrt(dLat * dLat + dLng * dLng);
 }
 
+// ── Wind Data ────────────────────────────────────────────────
+async function fetchWind() {
+  try {
+    const res = await fetch(CONFIG.windApiUrl);
+    const data = await res.json();
+    if (data.current) {
+      windData = {
+        speed: Math.round(data.current.wind_speed_10m * 0.54), // km/h to knots
+        direction: data.current.wind_direction_10m,
+      };
+    }
+  } catch (e) {
+    console.error("Wind fetch failed:", e);
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────
 updateClock();
 setInterval(updateClock, 1_000);
@@ -398,3 +572,6 @@ requestAnimationFrame(animate);
 
 fetchFlights();
 setInterval(fetchFlights, CONFIG.refreshInterval);
+
+fetchWind();
+setInterval(fetchWind, 300_000); // update wind every 5 min
